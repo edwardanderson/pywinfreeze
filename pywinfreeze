@@ -1,0 +1,69 @@
+#!/bin/bash 
+
+#pywinfreeze compiles Windows-compatible binaries on Linux.
+#It's a hack-together of @GeneralCarto's instructions for
+#freezing python applications inside a virtual-wine
+#environment
+
+#check parameter present
+if [ $# -eq 0 ]; then
+    echo "Required: path to pythton script"
+    exit 2
+fi
+
+#first parameter is path to python script
+file="$1"
+
+#check file exists
+if [ ! -f $file ]; then
+    echo "File not found"
+    exit 2
+fi
+
+#get directory path
+dir=$(dirname "${file}")
+
+#get virtual wine
+git clone https://github.com/htgoebel/virtual-wine.git
+
+#activate vwine env
+./virtual-wine/vwine-setup venv_wine
+. venv_wine/bin/activate
+
+#get python for windows and install silently
+wget https://www.python.org/ftp/python/2.7.11/python-2.7.11.msi -P ./venv_wine/
+WINEDEBUG=-all wine msiexec /i ./venv_wine/python-2.7.11.msi /passive
+
+#upgrade pip
+WINEDEBUG=-all wine c:/Python27/python.exe -m pip install --upgrade pip
+
+#install visual studio
+#wine vcredist_x86.exe
+
+#install pipreqs
+WINEDEBUG=-all wine c:/Python27/Scripts/pip.exe install pipreqs
+
+#generate python application's requirements.txt
+WINEDEBUG=-all wine c:/Python27/Scripts/pipreqs.exe --savepath ./venv_wine/requirements.txt $dir
+
+#install pyinstaller
+WINEDEBUG=-all wine c:/Python27/Scripts/pip.exe install pyinstaller==3.1.1
+
+#install python application's package requirements
+WINEDEBUG=-all wine c:/Python27/Scripts/pip.exe install -r ./venv_wine/requirements.txt
+
+#run pyinstaller
+WINEDEBUG=-all wine c:/Python27/Scripts/pyinstaller.exe -F $file --workpath ./venv_wine/ --distpath .
+
+#deactivate virtual environment
+deactivate
+
+#clean up
+rm -rf ./virtual-wine/
+rm -rf ./venv_wine/
+#remove spec file
+fn=$( basename "$file" .py )
+spec="$fn.spec"
+rm $spec
+
+
